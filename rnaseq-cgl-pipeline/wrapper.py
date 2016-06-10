@@ -27,6 +27,8 @@ def call_pipeline(mount, args):
     command.extend('file://' + x for x in args.samples)
     if args.restart:
         command.append('--restart')
+    if args.cores:
+        command.append('--maxCores={}'.format(args.cores))
     try:
         subprocess.check_call(command)
     finally:
@@ -57,6 +59,8 @@ def main():
                         help='Absolute path(s) to sample tarballs.')
     parser.add_argument('--restart', action='store_true', default=False,
                         help='Add this flag to restart the pipeline. Requires existing job store.')
+    parser.add_argument('--cores', type=int, default=None,
+                        help='Will set a cap on number of cores to use, default is all available cores.')
     args = parser.parse_args()
     # Get name of most recent running container (should be this one)
     name = subprocess.check_output(['docker', 'ps', '--format', '{{.Names}}']).split('\n')[0]
