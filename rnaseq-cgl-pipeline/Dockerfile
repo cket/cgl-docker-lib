@@ -21,7 +21,8 @@ RUN pip install toil
 
 # Install refactored rnaseq pipeline
 RUN git clone https://github.com/BD2KGenomics/toil-scripts /opt/rnaseq-pipeline
-RUN cd /opt/rnaseq-pipeline && git reset --hard 77510fb075f5865050621968e2dc6b2ac8cf7c87
+RUN cd /opt/rnaseq-pipeline && git reset --hard 582fb9dea377626631a78e861fc6c430b3319d18
+RUN pip install -e /opt/rnaseq-pipeline
 
 COPY wrapper.py /opt/rnaseq-pipeline/
 COPY README.md /opt/rnaseq-pipeline/
