@@ -12,16 +12,17 @@ This container runs the
 is built using [Toil](https://github.com/BD2KGenomics/toil), a high-performance pipeline architecture platform for
 running workflows. This container is designed to run local samples.
 This pipeline expects samples to be tarballs with fastq files inside, ideally paired data tagged with
-the conventional R1 and R2 standard. Samples should NOT have periods (.) in them aside from the extension.
+the conventional R1 and R2 standard. Samples should NOT have periods (.) in them aside from the extension
+as the output is derived from the sample input name.
 
-This pipeline requires a run environment with at least 40G of memory to run STAR alignment. 
+This pipeline **requires** a run environment with at least 40G of memory to run STAR alignment. 
 
-This pipeline requires a host with Docker 1.9.1 installed. Other versions of Docker will soon be supported.
+This pipeline **requires** a host with Docker 1.9.1 installed. Other versions of Docker will soon be supported.
 
 ## Inputs
 
 The CGL RNA-seq pipeline requires input files in order to run. These files are hosted on Synapse and can 
-be downloaded after creating an account which takes about 1 minute. 
+be downloaded after creating an account which takes about 1 minute and is free.
 
 * Register for a [Synapse account](https://www.synapse.org/#!RegisterAccount:0)
 * Either download the samples from the [website GUI](https://www.synapse.org/#!Synapse:syn5886029) or use the Python API
@@ -37,40 +38,34 @@ be downloaded after creating an account which takes about 1 minute.
     * Get the STAR index (25 G)
         * `syn.get('syn5886182', downloadLocation='.')`
 
-## Genomic tool containers
-
-Sometimes an error is thrown when attempting to pull down a Docker container that is used inside the pipeline. 
-To avoid running into these errors, run the following commmands before executing the pipeline for the first time.
-
-
-1. `docker pull quay.io/ucsc_cgl/cutadapt:1.9--6bd44edd2b8f8f17e25c5a268fedaab65fa851d2`
-2. `docker pull quay.io/ucsc_cgl/kallisto:0.42.4--35ac87df5b21a8e8e8d159f26864ac1e1db8cf86`
-3. `docker pull quay.io/ucsc_cgl/star:2.4.2a--bcbd5122b69ff6ac4ef61958e47bde94001cfe80`
-4. `docker pull quay.io/ucsc_cgl/rsem:1.2.25--d4275175cc8df36967db460b06337a14f40d2f21`
-5. `docker pull jvivian/rsem_postprocess`
-6. `docker pull jvivian/gencode_hugo_mapping`
-
-Note: This error was only seen once, so it is likely this step may not be necessary. 
 
 ## Running
 
-If samples and inputs are colocated in a place with _plenty_ of storage, simply mirror the absolute path to the
-parent directory when using Docker's -v mount command. Toil's job store and temporary directories will be 
-created inside this mount point. "-v /var/run/docker.sock:/var/run/docker.sock" must always be supplied. 
+The preferred way to run this pipeline is to colocate the pipeline and sample inputs in the location from which
+the pipeline will be run. This greatly simplifies the command line and complexity of running the container.
+This location must have _plenty_ of storage, as Toil's job store and temp directories will be created
+at this location during run time. 
 
-To reiterate, the mount for the working directory must match on both sides of the colon - 
-an error will be thrown if that is not the case. 
+ `-v /var/run/docker.sock:/var/run/docker.sock` must **always** be supplied as Docker argument 
+ (see bottom of README for details). 
+
+The work directory, where temp files will be created, must be "mirror mounted". This means that the diretory
+must be the same on both sides of the colon in Docker's `-v` command.  
+
+### Example Command
 
 ```
 docker run \
-    -v /foo/bar:/foo/bar \
+    -v /my/work/dir:/my/work/dir \
     -v /var/run/docker.sock:/var/run/docker.sock \
     quay.io/ucsc_cgl/rnaseq-cgl-pipeline \
-    --star /foo/bar/starIndex_hg38_no_alt.tar.gz \
-    --rsem /foo/bar/rsem_ref_hg38_no_alt.tar.gz \
-    --kallisto /foo/bar/kallisto_hg38.idx \
-    --samples /foo/bar/sample1.tar /foo/bar/sample2.tar ...
+    --samples sample1.tar sample2.tar ...
 ```
+
+The RSEM, STAR, and Kallisto inputs will be found automatically as long as they have "star", "rsem", and 
+"kallisto" in the name.
+
+The samples do not need absolute paths if they located in the work dir, which in the above example is **/my/work/dir**
 
 ### Separate sample, input, and work directory locations
 
@@ -99,9 +94,27 @@ docker run \
     --samples /samples/sample1.tar /samples/sample2.tar ...
 ```
 
-## Restarting
+## Core Limit and Restarting
 
-In the event of failure, the pipeline can be restarted by re-running the Docker command with the `--restart` argument.
+By default, the pipeline will use all available cores on the machine in which it is run. This can be regulated
+by using the `--cores` argument.
+
+In the event of failure, or if run with `--no-clean`,
+The pipeline can be resumed by rerunning the pipeline with the `--resume` argument. 
+
+## Genomic tool containers
+
+The individual tools in the pipeline can be pulled with the following commands:
+
+```
+docker pull quay.io/ucsc_cgl/fastqc:0.11.5--be13567d00cd4c586edf8ae47d991815c8c72a49
+docker pull quay.io/ucsc_cgl/cutadapt:1.9--6bd44edd2b8f8f17e25c5a268fedaab65fa851d2
+docker pull quay.io/ucsc_cgl/kallisto:0.42.4--35ac87df5b21a8e8e8d159f26864ac1e1db8cf86
+docker pull quay.io/ucsc_cgl/star:2.4.2a--bcbd5122b69ff6ac4ef61958e47bde94001cfe80
+docker pull quay.io/ucsc_cgl/rsem:1.2.25--d4275175cc8df36967db460b06337a14f40d2f21
+docker pull jvivian/rsem_postprocess
+docker pull jvivian/gencode_hugo_mapping
+```
 
 ## Into the Weeds
 
@@ -116,4 +129,4 @@ ascertain which of the mount points is the work path versus sample path. That's 
 returned by Docker inspect isn't ordered.  
 
 You can use whatever mount point you like for the samples and inputs _so long as they are not mirrored_ and
-you are consistent about using the dst path when passing in arguments to the container.
+you are consistent about using the destination path when passing in arguments to the container.
