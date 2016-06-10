@@ -1,9 +1,12 @@
 import argparse
+import json
+import logging
 import os
 import shutil
 import subprocess
-import json
-import logging
+import sys
+import textwrap
+from glob import glob
 from uuid import uuid4
 
 logging.basicConfig(level=logging.INFO)
@@ -32,9 +35,16 @@ def call_pipeline(mount, args):
     try:
         subprocess.check_call(command)
     finally:
+        log.info('Pipeline terminated, changing ownership of output files from root to user.')
         stat = os.stat(mount)
         subprocess.check_call(['chown', '-R', '{}:{}'.format(stat.st_uid, stat.st_gid), mount])
-        shutil.rmtree(os.path.join(mount, uuid))
+        if not args.no_clean:
+            log.info('Cleaning up temporary directory: {}'.format(work_dir))
+            shutil.rmtree(work_dir)
+        else:
+            log.info('Flag "--no-clean" was used, therefore {} was not deleted.'.format(work_dir))
+
+
 def generate_config(star_path, rsem_path, kallisto_path, output_dir):
     return textwrap.dedent("""
         star-index: file://{0}
@@ -51,6 +61,20 @@ def generate_config(star_path, rsem_path, kallisto_path, output_dir):
         rev-3pr-adapter: AGATCGGAAGAG
         ci-test:
     """[1:].format(star_path, rsem_path, kallisto_path, output_dir))
+
+
+class UserError(Exception):
+    pass
+
+
+def require(expression, message):
+    if not expression:
+        raise UserError('\n\n' + message + '\n\n')
+
+
+def check_for_input(input, name):
+    require(input, 'Cannot find {0} input, please use --{0} and provide full path to file.'.format(name))
+    return input[0]
 
 
 def main():
@@ -92,56 +116,75 @@ def main():
     """
     # Define argument parser for
     parser = argparse.ArgumentParser(description=main.__doc__, formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument('--star', type=str, required=True,
+    parser.add_argument('--star', type=str, default=None,
                         help='Absolute path to STAR index tarball.')
-    parser.add_argument('--rsem', type=str, required=True,
+    parser.add_argument('--rsem', type=str, default=None,
                         help='Absolute path to rsem reference tarball.')
-    parser.add_argument('--kallisto', type=str, required=True,
+    parser.add_argument('--kallisto', type=str, default=None,
                         help='Absolute path to kallisto index (.idx) file.')
     parser.add_argument('--samples', nargs='+', required=True,
                         help='Absolute path(s) to sample tarballs.')
-    parser.add_argument('--restart', action='store_true', default=False,
-                        help='Add this flag to restart the pipeline. Requires existing job store.')
+    parser.add_argument('--no-clean', action='store_true',
+                        help='If this flag is used, temporary work directory is not cleaned.')
+    parser.add_argument('--resume', type=str, default=None,
+                        help='Pass the working directory that contains a job store to be resumed.')
     parser.add_argument('--cores', type=int, default=None,
                         help='Will set a cap on number of cores to use, default is all available cores.')
     args = parser.parse_args()
-    # Get name of most recent running container (should be this one)
-    name = subprocess.check_output(['docker', 'ps', '--format', '{{.Names}}']).split('\n')[0]
+    # If no arguments provided, print full help menu
+    if len(sys.argv) == 1:
+        parser.print_help()
+        sys.exit(1)
+    # Get name of most recent running container (should be this one
+    try:
+        name = subprocess.check_output(['docker', 'ps', '--format', '{{.Names}}']).split('\n')[0]
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError('No container detected, ensure Docker is being run with: '
+                           '"-v /var/run/docker.sock:/var/run/docker.sock" as an argument. \n\n{}'.format(e.message))
     # Get name of mounted volume
     blob = json.loads(subprocess.check_output(['docker', 'inspect', name]))
     mounts = blob[0]['Mounts']
     # Ensure docker.sock is mounted correctly
     sock_mount = [x['Source'] == x['Destination'] for x in mounts if 'docker.sock' in x['Source']]
-    if len(sock_mount) != 1:
-        raise IllegalArgumentException('Missing socket mount. Requires the following:'
-                                       'docker run -v /var/run/docker.sock:/var/run/docker.sock')
+    require(len(sock_mount) == 1, 'Missing socket mount. Requires the following: '
+                                  'docker run -v /var/run/docker.sock:/var/run/docker.sock')
     # Ensure formatting of command for 2 mount points
     if len(mounts) == 2:
-        if not all(x['Source'] == x['Destination'] for x in mounts):
-            raise IllegalArgumentException('Docker Src/Dst mount points, invoked with the -v argument,'
-                                           'must be the same if only using one mount point aside from the '
-                                           'docker socket.')
+        require(all(x['Source'] == x['Destination'] for x in mounts),
+                'Docker Src/Dst mount points, invoked with the -v argument, '
+                'must be the same if only using one mount point aside from the docker socket.')
         work_mount = [x['Source'] for x in mounts if 'docker.sock' not in x['Source']]
     else:
         # Ensure only one mirror mount exists aside from docker.sock
         mirror_mounts = [x['Source'] for x in mounts if x['Source'] == x['Destination']]
         work_mount = [x for x in mirror_mounts if 'docker.sock' not in x]
-        if len(work_mount) > 1:
-            raise IllegalArgumentException('Too many mirror mount points provided, see documentation.')
-        if len(work_mount) == 0:
-            raise IllegalArgumentException('No required mirror mount point provided, see documentation.')
-    # Enforce file input standards
+        require(len(work_mount) == 1, 'Wrong number of mirror mounts provided, see documentation.')
+    # Intelligently look for inputs in work directory
+    star = glob(os.path.join(work_mount[0], 'star*'))
+    rsem = glob(os.path.join(work_mount[0], 'rsem*'))
+    kallisto = glob(os.path.join(work_mount[0], 'kallisto*'))
+    if not args.star:
+        args.star = check_for_input(star, 'star')
+    if not args.rsem:
+        args.rsem = check_for_input(rsem, 'rsem')
+    if not args.kallisto:
+        args.kallisto = check_for_input(kallisto, 'kallisto')
+    # If sample is given as relative path, assume work directory
     if not all(x.startswith('/') for x in args.samples):
-        raise IllegalArgumentException("Sample inputs must point to a file's full path, e.g. "
-                                       "'/full/path/to/sample1.tar'. You provided {}.".format(args.samples))
-    if not all(x.startswith('/') for x in [args.star, args.kallisto, args.rsem]):
-        raise IllegalArgumentException("Sample inputs must point to a file's full path, e.g. "
-                                       "'/full/path/to/sample1.tar'. You  provided {}.".format(args.samples))
+        args.samples = [os.path.join(work_mount[0], x) for x in args.samples if not x.startswith('/')]
+        log.info('\nSample given as relative path, assuming sample is in work directory: {}'.format(work_mount[0]))
+    # Enforce file input standards
+    require(all(x.startswith('/') for x in args.samples),
+            "Sample inputs must point to a file's full path, "
+            "e.g. '/full/path/to/sample1.tar'. You provided {}.".format(args.samples))
+    require(all(x.startswith('/') for x in [args.star, args.kallisto, args.rsem]),
+            "Sample inputs must point to a file's full path, "
+            "e.g. '/full/path/to/sample1.tar'. You  provided {}.".format(args.samples))
+    # Output log information
+    log.info('The work mount is: {}'.format(work_mount[0]))
+    log.info('Samples to run: {}'.format('\t'.join(args.samples)))
+    log.info('Pipeline input locations: \n{}\n{}\n{}'.format(args.star, args.rsem, args.kallisto))
     call_pipeline(work_mount[0], args)
-
-
-class IllegalArgumentException(Exception):
-    pass
 
 
 if __name__ == '__main__':
