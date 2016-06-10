@@ -11,41 +11,84 @@ log = logging.getLogger()
 
 
 def call_pipeline(mount, args):
-    uuid = 'Toil-RNAseq-' + str(uuid4())
-    if not os.path.isdir(mount + uuid):
-        os.makedirs(os.path.join(mount, uuid))
-    os.environ['PYTHONPATH'] = '/opt/rnaseq-pipeline/src'
-    command = ['python', '-m', 'toil_scripts.rnaseq_cgl.rnaseq_cgl_pipeline',
-               os.path.join(mount, 'jobStore'),
-               '--retryCount', '1',
-               '--output-dir', mount,
-               '--workDir', os.path.join(mount, uuid),
-               '--star-index', 'file://' + args.star,
-               '--rsem-ref', 'file://' + args.rsem,
-               '--kallisto-index', 'file://' + args.kallisto,
-               '--sample-urls']
-    command.extend('file://' + x for x in args.samples)
-    if args.restart:
+    work_dir = os.path.join(mount, 'Toil-RNAseq-' + str(uuid4()))
+    os.makedirs(work_dir)
+    log.info('Temporary directory created: {}'.format(work_dir))
+    config_path = os.path.join(work_dir, 'toil-rnaseq.config')
+    job_store = os.path.join(args.resume, 'jobStore') if args.resume else os.path.join(work_dir, 'jobStore')
+    with open(config_path, 'w') as f:
+        f.write(generate_config(args.star, args.rsem, args.kallisto, mount))
+    command = ['toil-rnaseq', 'run',
+               job_store,
+               '--config', config_path,
+               '--workDir', work_dir,
+               '--retryCount', '1']
+    if args.resume:
         command.append('--restart')
     if args.cores:
         command.append('--maxCores={}'.format(args.cores))
+    command.append('--samples')
+    command.extend('file://' + x for x in args.samples)
     try:
         subprocess.check_call(command)
     finally:
         stat = os.stat(mount)
         subprocess.check_call(['chown', '-R', '{}:{}'.format(stat.st_uid, stat.st_gid), mount])
         shutil.rmtree(os.path.join(mount, uuid))
+def generate_config(star_path, rsem_path, kallisto_path, output_dir):
+    return textwrap.dedent("""
+        star-index: file://{0}
+        rsem-ref: file://{1}
+        kallisto-index: file://{2}
+        output-dir: {3}
+        s3-dir:
+        cutadapt: true
+        ssec:
+        gtkey:
+        wiggle:
+        save-bam:
+        fwd-3pr-adapter: AGATCGGAAGAG
+        rev-3pr-adapter: AGATCGGAAGAG
+        ci-test:
+    """[1:].format(star_path, rsem_path, kallisto_path, output_dir))
 
 
 def main():
     """
+    Computational Genomics Lab, Genomics Institute, UC Santa Cruz
+    Dockerized Toil RNA-seq pipeline
+
+    RNA-seq fastqs are combined, aligned, and quantified with 2 different methods (RSEM and Kallisto)
+
+    General Usage:
+    docker run -v $(pwd):$(pwd) -v /var/run/docker.sock:/var/run/docker.sock \
+    quay.io/ucsc_cgl/rnaseq-cgl-pipeline --samples sample1.tar
+
     Please see the complete documentation located at:
     https://github.com/BD2KGenomics/cgl-docker-lib/tree/master/rnaseq-cgl-pipeline
-    or in the container at:
-    /opt/rnaseq-pipeline/README.md
+    or inside the container at: /opt/rnaseq-pipeline/README.md
 
-    All samples and inputs must be reachable via Docker "-v" mount points and use
-    the Destination path prefix.
+
+    Structure of RNA-Seq Pipeline (per sample)
+
+                  3 -- 4 -- 5
+                 /          |
+      0 -- 1 -- 2 ---- 6 -- 8
+                 \          |
+                  7 ---------
+
+    0 = Download sample
+    1 = Unpack/Merge fastqs
+    2 = CutAdapt (adapter trimming)
+    3 = STAR Alignment
+    4 = RSEM Quantification
+    5 = RSEM Post-processing
+    6 = Kallisto
+    7 = FastQC
+    8 = Consoliate output and upload to S3
+    =======================================
+    Dependencies
+    Docker: 1.9.1
     """
     # Define argument parser for
     parser = argparse.ArgumentParser(description=main.__doc__, formatter_class=argparse.RawTextHelpFormatter)
