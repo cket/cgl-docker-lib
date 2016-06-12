@@ -44,7 +44,7 @@ be downloaded after creating an account which takes about 1 minute and is free.
 The preferred way to run this pipeline is to colocate the pipeline and sample inputs in the location from which
 the pipeline will be run. This greatly simplifies the command line and complexity of running the container.
 This location must have _plenty_ of storage, as Toil's job store and temp directories will be created
-at this location during run time. 
+at this location during run time. A safe estimate for a single sample would be about 100 Gigabytes.
 
  `-v /var/run/docker.sock:/var/run/docker.sock` must **always** be supplied as Docker argument 
  (see bottom of README for details). 
@@ -54,18 +54,20 @@ must be the same on both sides of the colon in Docker's `-v` command.
 
 ### Example Command
 
+`cd` to the directory where the pipeline inputs and samples are located, then type:
+
 ```
 docker run \
-    -v /my/work/dir:/my/work/dir \
-    -v /var/run/docker.sock:/var/run/docker.sock \
-    quay.io/ucsc_cgl/rnaseq-cgl-pipeline \
-    --samples sample1.tar sample2.tar ...
+    -v $(pwd):$(pwd) \ # Work directory
+    -v /var/run/docker.sock:/var/run/docker.sock \ # Required Docker socket
+    quay.io/ucsc_cgl/rnaseq-cgl-pipeline \ # Name of the pipeline
+    --samples sample1.tar sample2.tar ... 
 ```
 
 The RSEM, STAR, and Kallisto inputs will be found automatically as long as they have "star", "rsem", and 
-"kallisto" in the name.
+"kallisto" in the name and are in the directory from which the pipeline is run.
 
-The samples do not need absolute paths if they located in the work dir, which in the above example is **/my/work/dir**
+The samples do not need absolute paths if they are located in the work dir.
 
 ### Separate sample, input, and work directory locations
 
@@ -78,7 +80,7 @@ the job store and work directories to be created, use the following format:
 
 Due to the way Docker works, this will change how you supply paths to the samples and inputs. Look at the 
 following example and you'll see that the path being passed to the container for samples is no longer 
-**/foo/bar/samples/sample1.tar**, but **/samples/sample1.tar**.  Likewise, the inputs are now passed in
+**/path/to/data/sample1.tar**, but **/samples/sample1.tar**.  Likewise, the inputs are now passed in
 as **/inputs/kallisto_hg38.idx**. 
 
 ```
@@ -90,7 +92,7 @@ docker run \
     quay.io/ucsc_cgl/rnaseq-cgl-pipeline \
     --star /inputs/starIndex_hg38_no_alt.tar.gz \
     --rsem /inputs/rsem_ref_hg38_no_alt.tar.gz \
-    --kallisto /inputs/kallisto_hg38.idx
+    --kallisto /inputs/kallisto_hg38.idx \
     --samples /samples/sample1.tar /samples/sample2.tar ...
 ```
 
@@ -99,8 +101,9 @@ docker run \
 By default, the pipeline will use all available cores on the machine in which it is run. This can be regulated
 by using the `--cores` argument.
 
-In the event of failure, or if run with `--no-clean`,
-The pipeline can be resumed by rerunning the pipeline with the `--resume` argument. 
+In the event of failure the pipeline can be resumed by rerunning the pipeline with the `--resume` argument. 
+
+If you would like to inspect the contents of the temp directory, you can specify the `--no-clean` flag.
 
 ## Genomic tool containers
 
