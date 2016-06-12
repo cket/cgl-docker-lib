@@ -72,9 +72,9 @@ def require(expression, message):
         raise UserError('\n\n' + message + '\n\n')
 
 
-def check_for_input(input, name):
-    require(input, 'Cannot find {0} input, please use --{0} and provide full path to file.'.format(name))
-    return input[0]
+def check_for_input(tool_input, name):
+    require(tool_input, 'Cannot find {0} input, please use --{0} and provide full path to file.'.format(name))
+    return tool_input[0]
 
 
 def main():
