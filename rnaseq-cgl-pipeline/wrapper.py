@@ -135,7 +135,7 @@ def main():
     if len(sys.argv) == 1:
         parser.print_help()
         sys.exit(1)
-    # Get name of most recent running container (should be this one
+    # Get name of most recent running container. If socket is mounted, should be this one.
     try:
         name = subprocess.check_output(['docker', 'ps', '--format', '{{.Names}}']).split('\n')[0]
     except subprocess.CalledProcessError as e:
@@ -159,7 +159,7 @@ def main():
         mirror_mounts = [x['Source'] for x in mounts if x['Source'] == x['Destination']]
         work_mount = [x for x in mirror_mounts if 'docker.sock' not in x]
         require(len(work_mount) == 1, 'Wrong number of mirror mounts provided, see documentation.')
-    # Intelligently look for inputs in work directory
+    # Look for inputs in work directory
     star = glob(os.path.join(work_mount[0], 'star*'))
     rsem = glob(os.path.join(work_mount[0], 'rsem*'))
     kallisto = glob(os.path.join(work_mount[0], 'kallisto*'))
@@ -169,7 +169,7 @@ def main():
         args.rsem = check_for_input(rsem, 'rsem')
     if not args.kallisto:
         args.kallisto = check_for_input(kallisto, 'kallisto')
-    # If sample is given as relative path, assume work directory
+    # If sample is given as relative path, assume it's in the work directory
     if not all(x.startswith('/') for x in args.samples):
         args.samples = [os.path.join(work_mount[0], x) for x in args.samples if not x.startswith('/')]
         log.info('\nSample given as relative path, assuming sample is in work directory: {}'.format(work_mount[0]))
