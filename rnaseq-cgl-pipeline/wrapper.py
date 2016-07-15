@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import argparse
 import json
 import logging
@@ -34,6 +36,8 @@ def call_pipeline(mount, args):
     command.extend('file://' + x for x in args.samples)
     try:
         subprocess.check_call(command)
+    except subprocess.CalledProcessError as e:
+        print(e.message, file=sys.stderr)
     finally:
         log.info('Pipeline terminated, changing ownership of output files from root to user.')
         stat = os.stat(mount)
