@@ -2,17 +2,17 @@
 build_tool = runtime-container.DONE
 git_commit ?= $(shell git log --pretty=oneline -n 1 -- ../rnaseq-cgl-pipeline | cut -f1 -d " ")
 name = quay.io/ucsc_cgl/rnaseq-cgl-pipeline
-tag = 582fb9d--${git_commit}
+tag = 2.0.0--${git_commit}
 
-build:
-	docker build -t ${name}:${tag} .
-	docker tag -f ${name}:${tag} ${name}:latest
+build: ${build_tool}
+
+${build_tool}: Dockerfile.py
+	python Dockerfile.py ${name} ${tag} build
 	touch ${build_tool}
 
 push: build
 	# Requires ~/.dockercfg
-	docker push ${name}:${tag}
-	docker push ${name}:latest
+	python Dockerfile.py ${name} ${tag} push
 
 test: build
 	python test.py
