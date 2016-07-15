@@ -1,12 +1,14 @@
 #!/usr/bin/env python2.7
 import subprocess
+import sys
 import unittest
 
 
 class TestRNASeqPipeline(unittest.TestCase):
 
     def test_docker_call(self):
-        tool = ['quay.io/ucsc_cgl/rnaseq-cgl-pipeline']
+        # print sys.argv
+        tool = ['quay.io/ucsc_cgl/rnaseq-cgl-pipeline:1.9.1--{}'.format(tag)]
         base = ['docker', 'run']
         args = ['--star=/foo', '--rsem=/foo', '--kallisto=/foo', '--samples=/foo']
         sock = ['-v', '/var/run/docker.sock:/var/run/docker.sock']
@@ -38,4 +40,7 @@ def check_docker_output(command, assert_1=True):
 
 
 if __name__ == '__main__':
+    tag = sys.argv[1]
+    del sys.argv[1]
+
     unittest.main()

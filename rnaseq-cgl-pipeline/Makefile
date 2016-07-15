@@ -15,7 +15,7 @@ push: build
 	python Dockerfile.py ${name} ${tag} push
 
 test: build
-	python test.py
+	python test.py ${tag}
 
 clean:
 	-rm ${build_tool}
