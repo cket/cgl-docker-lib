@@ -1,0 +1,12 @@
+FROM mesosphere/mesos-ROLE:1.0.0
+
+MAINTAINER Frank Austin Nothaft, fnothaft@berkeley.edu
+MAINTAINER CJ Ketchum, cketchum@ucsc.edu
+
+# update apt and install python bits
+RUN apt-get update && apt-get install -y \
+	python-dev \
+	python-pip
+
+# Install Toil
+RUN pip install toil[aws,mesos,encryption,cwl]==3.3.0
