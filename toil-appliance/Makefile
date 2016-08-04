@@ -9,8 +9,7 @@ push: build
 	cd toil-worker && $(MAKE) push
 
 test: build
-	cd toil-leader && $(MAKE) test
-	cd toil-worker && $(MAKE) test
+	./test/test.sh
 
 clean:
 	cd toil-leader && $(MAKE) clean
