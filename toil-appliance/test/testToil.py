@@ -1,7 +1,9 @@
+import time
 from toil.job import Job
 import argparse
 
 def f0(job, cpu=0.1, memory=100):
+    time.sleep(20)
     with open("./test", "w") as f:
         f.write("writing forever")
 
