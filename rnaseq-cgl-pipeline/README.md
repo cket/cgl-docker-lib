@@ -19,17 +19,8 @@ This pipeline **requires** a run environment with at least 40G of memory to run 
 
 This pipeline **requires** a host with Docker installed. 
 
-Docker versions supported:
-
-* 1.7.0
-* 1.7.1
-* 1.8.0
-* 1.8.1
-* 1.9.0
-* 1.9.1
-* 1.10.0
-* 1.10.1
-* 1.10.3
+Docker versions 1.6-1.12 (inclusive) are supported since we build every Docker protocol version
+in those releases.
 
 You can pull a specific version of this pipeline by using the appropriate tag.
 

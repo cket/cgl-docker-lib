@@ -23,7 +23,8 @@ def call_pipeline(mount, args):
     job_store = os.path.join(args.resume, 'jobStore') if args.resume else os.path.join(work_dir, 'jobStore')
     with open(config_path, 'w') as f:
         f.write(generate_config(args.star, args.rsem, args.kallisto, mount,
-                                args.disable_cutadapt, args.save_bam, args.save_wiggle))
+                                args.disable_cutadapt, args.save_bam, args.save_wiggle,
+                                args.bamqc))
     command = ['toil-rnaseq', 'run',
                job_store,
                '--config', config_path,
@@ -33,9 +34,10 @@ def call_pipeline(mount, args):
         command.append('--restart')
     if args.cores:
         command.append('--maxCores={}'.format(args.cores))
-    command.append('--samples')
-    command.extend('file://' + x for x in args.samples)
+    path_to_manifest = generate_manifest(args.samples, work_dir)
+    command.append('--manifest=' + path_to_manifest)
     try:
+        log.info('Docker Comand: ' + str(command))
         subprocess.check_call(command)
     except subprocess.CalledProcessError as e:
         print(e.message, file=sys.stderr)
@@ -50,8 +52,23 @@ def call_pipeline(mount, args):
             log.info('Flag "--no-clean" was used, therefore {} was not deleted.'.format(work_dir))
 
 
-def generate_config(star_path, rsem_path, kallisto_path, output_dir, disable_cutadapt, save_bam, save_wiggle):
+def generate_manifest(samples, workdir):
+    path = os.path.join(workdir, 'manifest-toil-rnaseq.tsv')
+    tars = [n for n in samples if not n.endswith('.fastq')]
+    log.info('Path to manifest: ' + workdir)
+    with open(path, 'w') as f:
+        f.write('\n'.join('\t'.join(['tar', 'paired', os.path.basename(tars[i]).split('.')[0], 'file://' + tars[i]])
+                          for i in range(len(tars))))
+        fastqs = [n for n in samples if n.endswith('.fastq')]
+        f.write('\n'.join('\t'.join(['fq', 'paired', os.path.basename(tars[i]).split('.')[0], 'file://' + fastqs[i]])
+                          for i in range(len(fastqs))))
+    return path
+
+
+def generate_config(star_path, rsem_path, kallisto_path, output_dir, disable_cutadapt, save_bam,
+                    save_wiggle, bamqc):
     cutadapt = True if not disable_cutadapt else False
+    bamqc = bool(bamqc)
     return textwrap.dedent("""
         star-index: file://{star_path}
         kallisto-index: file://{kallisto_path}
@@ -59,6 +76,7 @@ def generate_config(star_path, rsem_path, kallisto_path, output_dir, disable_cut
         output-dir: {output_dir}
         cutadapt: {cutadapt}
         fastqc: true
+        bamqc: {bamqc}
         fwd-3pr-adapter: AGATCGGAAGAG
         rev-3pr-adapter: AGATCGGAAGAG
         ssec:
@@ -128,6 +146,11 @@ def main():
                         help='Pass the working directory that contains a job store to be resumed.')
     parser.add_argument('--cores', type=int, default=None,
                         help='Will set a cap on number of cores to use, default is all available cores.')
+    parser.add_argument('--bamqc', action='store_true', default=None,
+                        help='Enable BAM QC step. Disabled by default')
+    parser.add_argument('--work_mount', default=os.getcwd(),
+                        help='Mount where intermediate files should be written. This directory '
+                             'should be mirror mounted into the container.')
     args = parser.parse_args()
     # If no arguments provided, print full help menu
     if len(sys.argv) == 1:
@@ -146,20 +169,10 @@ def main():
     sock_mount = [x['Source'] == x['Destination'] for x in mounts if 'docker.sock' in x['Source']]
     require(len(sock_mount) == 1, 'Missing socket mount. Requires the following: '
                                   'docker run -v /var/run/docker.sock:/var/run/docker.sock')
-    # Ensure formatting of command for 2 mount points
-    if len(mounts) == 2:
-        require(all(x['Source'] == x['Destination'] for x in mounts),
-                'Docker Src/Dst mount points, invoked with the -v argument, '
-                'must be the same if only using one mount point aside from the docker socket.')
-        work_mount = [x['Source'] for x in mounts if 'docker.sock' not in x['Source']]
-    else:
-        # Ensure only one mirror mount exists aside from docker.sock
-        mirror_mounts = [x['Source'] for x in mounts if x['Source'] == x['Destination']]
-        work_mount = [x for x in mirror_mounts if 'docker.sock' not in x]
-        require(len(work_mount) == 1, 'Wrong number of mirror mounts provided, see documentation.')
+    work_mount = args.work_mount
     # If sample is given as relative path, assume it's in the work directory
     if not all(x.startswith('/') for x in args.samples):
-        args.samples = [os.path.join(work_mount[0], x) for x in args.samples if not x.startswith('/')]
+        args.samples = [os.path.join(work_mount, x) for x in args.samples if not x.startswith('/')]
         log.info('\nSample given as relative path, assuming sample is in work directory: {}'.format(work_mount[0]))
     # Enforce file input standards
     require(all(x.startswith('/') for x in args.samples),
@@ -169,10 +182,10 @@ def main():
             "Sample inputs must point to a file's full path, "
             "e.g. '/full/path/to/kallisto_hg38.idx'.")
     # Output log information
-    log.info('The work mount is: {}'.format(work_mount[0]))
+    log.info('The work mount is: {}'.format(work_mount))
     log.info('Samples to run: {}'.format('\t'.join(args.samples)))
     log.info('Pipeline input locations: \n{}\n{}\n{}'.format(args.star, args.rsem, args.kallisto))
-    call_pipeline(work_mount[0], args)
+    call_pipeline(work_mount, args)
 
 
 if __name__ == '__main__':
