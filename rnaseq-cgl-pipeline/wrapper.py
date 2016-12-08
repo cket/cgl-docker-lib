@@ -53,14 +53,21 @@ def call_pipeline(mount, args):
 
 
 def generate_manifest(samples, workdir):
+    def formatURL(fastqPair):
+        pairList = fastqPair.split(',')
+        for index in range(0, len(pairList)):
+            pairList[index] = 'file://' + pairList[index]
+        properlyFormatted = ','.join(pairList)
+        return properlyFormatted
     path = os.path.join(workdir, 'manifest-toil-rnaseq.tsv')
-    tars = [n for n in samples if not n.endswith('.fastq')]
+    tars = [n for n in samples if ',' not in n] # fastqs are comma deliminated
+    fastqs = [n for n in samples if ',' in n]
+    fastqs = map(formatURL, fastqs)
     log.info('Path to manifest: ' + workdir)
     with open(path, 'w') as f:
         f.write('\n'.join('\t'.join(['tar', 'paired', os.path.basename(tars[i]).split('.')[0], 'file://' + tars[i]])
                           for i in range(len(tars))))
-        fastqs = [n for n in samples if n.endswith('.fastq')]
-        f.write('\n'.join('\t'.join(['fq', 'paired', os.path.basename(tars[i]).split('.')[0], 'file://' + fastqs[i]])
+        f.write('\n'.join('\t'.join(['fq', 'paired', os.path.basename(fastqs[i]).split('.')[0], fastqs[i]])
                           for i in range(len(fastqs))))
     return path
 
