@@ -148,7 +148,7 @@ def main():
                         help='Will set a cap on number of cores to use, default is all available cores.')
     parser.add_argument('--bamqc', action='store_true', default=None,
                         help='Enable BAM QC step. Disabled by default')
-    parser.add_argument('--work_mount', default=os.getcwd(),
+    parser.add_argument('--work_mount', required=True,
                         help='Mount where intermediate files should be written. This directory '
                              'should be mirror mounted into the container.')
     args = parser.parse_args()
