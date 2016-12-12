@@ -20,7 +20,7 @@ RUN curl https://get.docker.com/builds/Linux/x86_64/docker-DOCKERVER.tgz \
 RUN pip install toil==3.3.4
 
 # Install toil-rnaseq
-RUN pip install toil-rnaseq --pre
+RUN pip install toil-rnaseq==3.0.0
 
 COPY wrapper.py /opt/rnaseq-pipeline/
 COPY README.md /opt/rnaseq-pipeline/
