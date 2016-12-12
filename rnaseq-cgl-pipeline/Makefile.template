@@ -2,7 +2,7 @@
 build_tool = runtime-container.DONE
 name = quay.io/ucsc_cgl/rnaseq-cgl-pipeline
 git_commit ?= $(shell git log --pretty=oneline -n 1 -- ../../rnaseq-cgl-pipeline | cut -f1 -d " ")
-short_tag = 2.0.10--DOCKERVER
+short_tag = 3.0.0--DOCKERVER
 long_tag = ${short_tag}--${git_commit}
 
 build: Dockerfile
@@ -17,8 +17,8 @@ push: build
 	docker push ${name}:${short_tag}
 
 test: build
-	python test.py ${tag}
+	python test.py ${long_tag}
 
 clean:
-	docker rmi -f ${name}:${tag}
+	docker rmi -f ${name}:${short_tag}
 	rm ${build_tool}
