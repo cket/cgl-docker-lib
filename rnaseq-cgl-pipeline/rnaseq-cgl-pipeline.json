@@ -1,0 +1,34 @@
+{
+   "rsem" : {
+      "class" : "File",
+      "path" : "https://s3.amazonaws.com/oconnor-test-bucket/sample-data/rsem_ref_hg38_no_alt.tar.gz"
+   },
+   "no-clean" : true,
+   "save-bam" : false,
+   "disable-cutadapt" : false,
+   "kallisto" : {
+      "path" : "https://s3.amazonaws.com/oconnor-test-bucket/sample-data/kallisto_hg38.idx",
+      "class" : "File"
+   },
+   "output_files" : [
+      {
+         "class" : "File",
+         "path" : "/tmp/small_NA12878-NGv3-LAB1360-A.tar.gz"
+      }
+   ],
+   "samples" : [
+      {
+         "class" : "File",
+         "path" : "redwood://storage2.ucsc-cgl.org/9eaa6251-7233-530c-86c3-6e0c7eeb50d0/0158bbe0-9bef-58cd-b058-af1707435618/small_NA12878-NGv3-LAB1360-A.tar"
+      }
+   ],
+   "save-wiggle" : false,
+   "bamqc" : true,
+   "work-mount" : {
+       "path" : "~/"
+   },
+   "star" : {
+      "path" : "https://s3.amazonaws.com/oconnor-test-bucket/sample-data/starIndex_hg38_no_alt.tar.gz",
+      "class" : "File"
+   }
+}
