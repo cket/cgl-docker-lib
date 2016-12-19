@@ -10,6 +10,7 @@ import sys
 import textwrap
 from uuid import uuid4
 from bd2k.util.exceptions import require
+from toil.lib.bioio import addLoggingOptions, setLoggingFromOptions
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger()
@@ -25,10 +26,13 @@ def call_pipeline(mount, args):
         f.write(generate_config(args.star, args.rsem, args.kallisto, mount,
                                 args.disable_cutadapt, args.save_bam, args.save_wiggle,
                                 args.bamqc))
+    loglevel = log.getEffectiveLevel()
+
     command = ['toil-rnaseq', 'run',
                job_store,
                '--config', config_path,
                '--workDir', work_dir,
+               args.toilLoggingOption,
                '--retryCount', '1']
     if args.resume:
         command.append('--restart')
@@ -158,7 +162,17 @@ def main():
     parser.add_argument('--work_mount', required=True,
                         help='Mount where intermediate files should be written. This directory '
                              'should be mirror mounted into the container.')
+    # although we don't actually set the log level in this module, the option is propagated to toil. For this reason
+    # we want the logging options to show up with we run --help
+    addLoggingOptions(parser)
+    toilLoggingOption = None
+    for arg in sys.argv:
+        if 'log' in arg:
+            toilLoggingOption = arg
+            sys.argv.remove(toilLoggingOption)
+            break
     args = parser.parse_args()
+    args.toilLoggingOption = toilLoggingOption
     # If no arguments provided, print full help menu
     if len(sys.argv) == 1:
         parser.print_help()
