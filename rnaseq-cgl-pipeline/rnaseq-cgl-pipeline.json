@@ -24,9 +24,7 @@
    ],
    "save-wiggle" : false,
    "bamqc" : true,
-   "work-mount" : {
-       "path" : "~/"
-   },
+   "work-mount" : "~/",
    "star" : {
       "path" : "https://s3.amazonaws.com/oconnor-test-bucket/sample-data/starIndex_hg38_no_alt.tar.gz",
       "class" : "File"
