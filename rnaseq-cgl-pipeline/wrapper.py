@@ -60,6 +60,12 @@ def generate_manifest(samples, workdir):
     def formatURL(fastqPair):
         pairList = fastqPair.split(',')
         for index in range(0, len(pairList)):
+            for ending in ('.fastq.gz', '.fastq', '.fq.gz', '.fq'):
+                if pairList[index].endswith(ending):
+                    baseName = pairList[index].split(ending)[0]
+                    if not (baseName.endswith('R1') or baseName.endswith('R2')):
+                        pairList[index] = baseName + ('R1' if index == 0 else 'R2') + ending
+                        break
             pairList[index] = 'file://' + pairList[index]
         properlyFormatted = ','.join(pairList)
         return properlyFormatted
