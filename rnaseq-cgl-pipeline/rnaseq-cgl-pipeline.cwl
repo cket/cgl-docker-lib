@@ -10,7 +10,7 @@ $namespaces:
   foaf: http://xmlns.com/foaf/0.1/
 
 doc: |
-    ![build_status](https://quay.io/repository/briandoconnor/rnaseq-cgl-pipeline/status)
+    ![build_status](https://quay.io/repository/ucsc_cgl/rnaseq-cgl-pipeline/status)
 
     **The UCSC RNA-seq CGL Workflow**
 
@@ -40,7 +40,7 @@ dct:creator:
 
 requirements:
   - class: DockerRequirement
-    dockerPull: "quay.io/briandoconnor/rnaseq-cgl-pipeline:3.0.1"
+    dockerPull: "quay.io/ucsc_cgl/rnaseq-cgl-pipeline:3.0.1--1.12.3"
 
 hints:
   - class: ResourceRequirement
@@ -154,5 +154,5 @@ outputs:
       glob: '*.bam'
       doc: "BAM result files RNA-seq CGL pipeline"
 
-baseCommand: ["python","/opt/rnaseq-pipeline/wrapper.py"]
+baseCommand: ["--logDebug"]
 
